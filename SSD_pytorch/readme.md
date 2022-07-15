@@ -1,15 +1,4 @@
-# 重构SSD代码实现
-
-----------
-
-该仓库基于[Max deGroot](https://github.com/amdegroot)与[Ellis Brown](https://github.com/ellisbrown)的[ssd.pytorch](https://github.com/amdegroot/ssd.pytorch)进行的，非常感谢他们无私的奉献。
- 
-
-- [原地址](https://github.com/amdegroot/ssd.pytorch) 
-- [原地址的加注释版本](https://github.com/bobo0810/pytorchSSD) 
-- [重构版本](https://github.com/bobo0810/AnnotatedNetworkModelGit/tree/master/SSD_pytorch) 强烈推荐！（即本仓库）
-
-----------
+# # git bash test
 
  # 目前支持：
 
@@ -39,19 +28,19 @@
 # 一般项目结构
 
   1、定义网络
-  
+
   ![](https://github.com/bobo0810/imageRepo/blob/master/img/16409622.jpg) 
-  
+
    2、封装数据集
-   
+
   ![](https://github.com/bobo0810/imageRepo/blob/master/img/38894621.jpg)
-  
+
    3、工具类
-   
+
   ![](https://github.com/bobo0810/imageRepo/blob/master/img/98583532.jpg)
-  
+
    4、主函数
-   
+
   ![](https://github.com/bobo0810/imageRepo/blob/master/img/32257225.jpg)
 
 
