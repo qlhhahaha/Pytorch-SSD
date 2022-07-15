@@ -1,49 +1,51 @@
-from SSD_pytorch.data import *
-from SSD_pytorch.utils.augmentations import SSDAugmentation
-from SSD_pytorch.models.modules import MultiBoxLoss
-from SSD_pytorch.models.ssd import build_ssd
-from SSD_pytorch.models.modules.init_weights import weights_init
-from SSD_pytorch.data import VOC_CLASSES as VOC_CLASSES
+from data import *
+from data import VOC_CLASSES as VOC_CLASSES
+from models.modules import MultiBoxLoss
+from models.ssd import build_ssd
+from models.modules.init_weights import weights_init
+from utils.augmentations import SSDAugmentation
+from utils.config import opt
+from utils.visualize import Visualizer
+from utils.timer import Timer
+from utils.eval_untils import evaluate_detections
+
 import torch
-from SSD_pytorch.utils.config import opt
 from torch.autograd import Variable
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
 import torch.utils.data as data
-from SSD_pytorch.utils.visualize import Visualizer
-from SSD_pytorch.utils.timer import Timer
-from SSD_pytorch.utils.eval_untils import evaluate_detections
 import os
 import time
 import sys
 import pickle
 from matplotlib import pyplot as plt
+
 if sys.version_info[0] == 2:
     import xml.etree.cElementTree as ET
 else:
     import xml.etree.ElementTree as ET
 
-
-
-#设置创建tensor的默认类型
+# 设置创建tensor的默认类型
 if opt.use_gpu:
     torch.set_default_tensor_type('torch.cuda.FloatTensor')
 else:
     torch.set_default_tensor_type('torch.FloatTensor')
 
-def train():
 
-    #返回一个batch的信息，其中每行代表一张图像 及 对应的真值框和类别
+def train():
+    # 定义数据类，返回一个batch的信息，其中每行代表一张图像及对应的GT框和类别
     dataset = VOCDetection(root=opt.voc_data_root,
-                           transform=SSDAugmentation(opt.voc['min_dim'],
-                                                     opt.MEANS))
-    # 定义可视化对象
+                           transform=SSDAugmentation(opt.voc['min_dim'], opt.MEANS))
+
+    # 在visdom中定义一个可视化对象
     vis = Visualizer(opt.env + opt.model)
+
     # 初始化ssd模型
     #  opt.voc['min_dim']：300×300图像
     # opt.voc['num_classes']  21 类别数（20类+1背景）
     ssd_net = build_ssd('train', opt.voc['min_dim'], opt.voc['num_classes'])
-    # 数据并行是当我们将小批量样品分成多个较小的批量批次，并且对每个较小的小批量并行运行计算。
+
+    # 数据并行是当我们将小批量样品分成多个较小的批量批次，并且对每个较小的小批量并行运行计算
     if opt.use_gpu:
         # GPU并行
         net = torch.nn.DataParallel(ssd_net)
@@ -52,7 +54,7 @@ def train():
     # 加载预训练好的的SSD模型
     if opt.load_model_path:
         print('加载已训练好的SSD模型')
-        ssd_net.load_state_dict(torch.load(opt.load_model_path,map_location=lambda storage, loc: storage))
+        ssd_net.load_state_dict(torch.load(opt.load_model_path, map_location=lambda storage, loc: storage))
         print('加载权重完成!')
     else:
         # 从头开始训练
@@ -83,7 +85,6 @@ def train():
     # 一个epoch需要几次batch  //除法操作（向下取整）
     epoch_size = len(dataset) // opt.batch_size
 
-
     step_index = 0
     # 设置可视化
     if opt.visdom:
@@ -101,17 +102,18 @@ def train():
     data_loader = data.DataLoader(dataset, opt.batch_size,
                                   num_workers=opt.num_workers,
                                   shuffle=True, collate_fn=detection_collate,
-                                  pin_memory=True)
+                                  pin_memory=True,
+                                  generator=torch.Generator(device='cuda'))
     # 开始迭代数据集
     batch_iterator = iter(data_loader)
     # iteration数为每个batch迭代数
-    #start_iter：从第几个iter开始迭代   max_iter：最大迭代数
+    # start_iter：从第几个iter开始迭代   max_iter：最大迭代数
     for iteration in range(opt.start_iter, opt.voc['max_iter']):
         # 可视化
         # epoch_size：一个epoch需要的batch数。即每一个epoch可视化一下
         if opt.visdom and iteration != 0 and (iteration % epoch_size == 0):
             vis.update_vis_plot(epoch, loc_loss, conf_loss, epoch_plot, 'append',
-                            'append', epoch_size)
+                                'append', epoch_size)
             # 重置epoch损失计数器
             loc_loss = 0
             conf_loss = 0
@@ -133,16 +135,17 @@ def train():
             data_loader = data.DataLoader(dataset, opt.batch_size,
                                           num_workers=opt.num_workers,
                                           shuffle=True, collate_fn=detection_collate,
-                                          pin_memory=True)
+                                          pin_memory=True,
+                                          generator=torch.Generator(device='cuda'))
             batch_iterator = iter(data_loader)
             images, targets = next(batch_iterator)
         # 将训练集转到GPU上
         if opt.use_gpu:
             images = Variable(images.cuda())
-            targets = [Variable(ann.cuda(), volatile=True) for ann in targets]
+            targets = [Variable(ann.cuda()) for ann in targets]
         else:
             images = Variable(images)
-            targets = [Variable(ann, volatile=True) for ann in targets]
+            targets = [Variable(ann) for ann in targets]
         # forward前向传播开始
         # t0、t1用于计算方法执行时间
         t0 = time.time()
@@ -159,23 +162,25 @@ def train():
         optimizer.step()
         t1 = time.time()
 
-        loc_loss += loss_l.data[0]
-        conf_loss += loss_c.data[0]
+        loc_loss += loss_l.item()
+        conf_loss += loss_c.item()
+
         # 每10个batch迭代输出信息
-        if iteration % 10 == 0:
+        if iteration % 100 == 0:
             print('前向+反向总共所需时间timer: %.4f sec.' % (t1 - t0))
-            print('iter为 ' + repr(iteration) + ' || 总Loss: %.4f ||' % (loss.data[0]), end=' ')
+            print('iter为 ' + repr(iteration) + ' || 总Loss: %.4f ||' % (loss.item()), end=' ')
         # 可视化
         if opt.visdom:
-            vis.update_vis_plot(iteration, loss_l.data[0], loss_c.data[0],
-                            iter_plot, epoch_plot, 'append')
+            vis.update_vis_plot(iteration, loss_l.item(), loss_c.item(),
+                                iter_plot, epoch_plot, 'append')
         # 每5000次迭代保存模型
-        if iteration != 0 and iteration % 5000 == 0:
+        if iteration != 0 and iteration % 1200 == 0:
             print('Saving state, iter:', iteration)
             ssd_net.saveSSD(str(iteration))
 
     # 保存最后的模型
     ssd_net.saveSSD()
+
 
 def eval():
     '''
@@ -190,10 +195,10 @@ def eval():
         print('加载已训练好的SSD模型')
         net.load_state_dict(torch.load(opt.load_model_path, map_location=lambda storage, loc: storage))
         print('加载权重完成!')
-    #模型转为验证模式
+    # 模型转为验证模式
     net.eval()
     # 加载数据 (使用VOC2007的测试集进行验证)
-    dataset = VOCDetection(opt.voc_data_root, [('2007',  'test')],
+    dataset = VOCDetection(opt.voc_data_root, [('2007', 'test')],
                            BaseTransform(300, opt.MEANS),
                            VOCAnnotationTransform())
     if opt.use_gpu:
@@ -219,7 +224,7 @@ def eval():
         if opt.use_gpu:
             x = x.cuda()
         _t['im_detect'].tic()
-        #得到预测结果
+        # 得到预测结果
         detections = net(x).data
         detect_time = _t['im_detect'].toc(average=False)
 
@@ -243,7 +248,7 @@ def eval():
             all_boxes[j][i] = cls_dets
 
         print('验证集图像检测进度: {:d}/{:d}  单张预测耗时：{:.3f}s'.format(i + 1,
-                                                    num_images, detect_time))
+                                                            num_images, detect_time))
 
     with open(det_file, 'wb') as f:
         pickle.dump(all_boxes, f, pickle.HIGHEST_PROTOCOL)
@@ -252,7 +257,7 @@ def eval():
     evaluate_detections(all_boxes, opt.temp, dataset)
 
 
-def test():
+def my_test():
     '''
     测试集使用VOC2007测试集，将结果存储到voc2007_test.txt中
     '''
@@ -273,7 +278,7 @@ def test():
         cudnn.benchmark = True
 
     # dump predictions and assoc. ground truth to text file for now
-    transform=BaseTransform(net.size, (104, 117, 123))
+    transform = BaseTransform(net.size, (104, 117, 123))
     filename = opt.temp_test + 'voc2007_test.txt'
     num_images = len(testset)
     for i in range(num_images):
@@ -313,6 +318,7 @@ def test():
                             str(score) + ' ' + ' || '.join(str(c) for c in coords) + '\n')
                 j += 1
 
+
 def predict():
     '''
     使用SSD进行对象检测,并进行可视化
@@ -328,7 +334,7 @@ def predict():
 
     # 加载原图像并可视化
     image = cv2.imread(opt.test_img, cv2.IMREAD_COLOR)
-    #rgb格式的原图
+    # rgb格式的原图
     rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     # 显示原图
     plt.figure(figsize=(10, 10))
@@ -336,39 +342,39 @@ def predict():
     plt.title("origin img")
     plt.show()
 
-    #对输入图像进行预处理
-    #将图像resize到300x300
+    # 对输入图像进行预处理
+    # 将图像resize到300x300
     x = cv2.resize(image, (300, 300)).astype(np.float32)
-    #(104.0, 117.0, 123.0)为ImageNet数据集的三通道均值，更符合大自然的分布规律
+    # (104.0, 117.0, 123.0)为ImageNet数据集的三通道均值，更符合大自然的分布规律
     x -= (104.0, 117.0, 123.0)
-    #类型转化
+    # 类型转化
     x = x.astype(np.float32)
     x = x[:, :, ::-1].copy()
-    #显示预处理之后的图片
+    # 显示预处理之后的图片
     plt.title("pre-process img")
     plt.imshow(x)
     plt.show()
     #  permute 按制定的维数排序
     x = torch.from_numpy(x).permute(2, 0, 1)
 
-    #前向传播，得到网络预测
+    # 前向传播，得到网络预测
     xx = Variable(x.unsqueeze(0))  # 扩展第0维，因为网络的输入要求是一个batch
     if torch.cuda.is_available():
         xx = xx.cuda()
     y = net(xx)
 
-    #解析网络输出并将结果可视化
+    # 解析网络输出并将结果可视化
     plt.figure(figsize=(10, 10))
     colors = plt.cm.hsv(np.linspace(0, 1, 21)).tolist()
     plt.imshow(rgb_image)  # 画出rgb格式的原图
-    currentAxis = plt.gca()  #当前轴
+    currentAxis = plt.gca()  # 当前轴
 
     detections = y.data
     # 将检测结果缩放匹配到原图上  repeat：沿着指定的尺寸重复 tensor
     scale = torch.Tensor(rgb_image.shape[1::-1]).repeat(2)
     for i in range(detections.size(1)):
         j = 0
-        #置信度分数阈值设置为0.6
+        # 置信度分数阈值设置为0.6
         while detections[0, i, j, 0] >= 0.6:
             score = detections[0, i, j, 0]
             label_name = VOC_CLASSES[i - 1]
@@ -379,14 +385,13 @@ def predict():
             currentAxis.add_patch(plt.Rectangle(*coords, fill=False, edgecolor=color, linewidth=2))
             currentAxis.text(pt[0], pt[1], display_txt, bbox={'facecolor': color, 'alpha': 0.5})
             j += 1
-    #可视化最后结果
+    # 可视化最后结果
     plt.title("predict img")
     plt.show()
 
 
-
 if __name__ == '__main__':
-    # train()  #使用VOC2007和2012的训练集+验证集 开始训练
+    # train()  # 使用VOC2007和2012的训练集+验证集 开始训练
     # eval()  # VOC2007测试集,计算各类AP及mAP
-    # test()  #VOC2007测试集，将预测结果写入txt
-    predict()  #可视化一张预测图片
+    my_test()  #VOC2007测试集，将预测结果写入txt
+    # predict()  #可视化一张预测图片

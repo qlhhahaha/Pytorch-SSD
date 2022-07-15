@@ -2,31 +2,31 @@
 # power by Mr.Li
 # 设置默认参数
 import os.path
+
+
 class DefaultConfig():
     env = 'SSD_'  # visdom 环境的名字
-    visdom=True # 是否可视化
+    visdom = False  # 是否可视化
     # 目前支持的网络
     model = 'vgg16'
 
+    voc_data_root = 'D:/lab_working/my_dataset/VOCdevkit'  # VOC数据集根目录,该文件夹下有两个子文件夹。一个叫VOC2007,一个叫VOC2012
 
-    voc_data_root='/home/bobo/data/VOCdevkit/'  # VOC数据集根目录,该文件夹下有两个子文件夹。一个叫VOC2007,一个叫VOC2012
 
     # 基础网络，即特征提取网络（去掉全连接的预训练模型vgg16）
-    basenet='/home/bobo/windowsPycharmProject/SSD_pytorch/checkpoint/vgg16_reducedfc.pth'  #应为全路径 预训练好的去掉全连接层的vgg16模型
-    batch_size = 32  # 训练集的batch size
-    start_iter=0  #训练从第几个item开始
+    basenet = 'D:/lab_working/Pytorch-SSD/SSD_pytorch/checkpoint/vgg16_reducedfc.pth'  # 应为全路径 预训练好的去掉全连接层的vgg16模型
+    batch_size = 16  # 训练集的batch size
+    start_iter = 0  # 训练从第几个item开始
     num_workers = 4  # 加载数据时的线程数
     use_gpu = True  # user GPU or not
     lr = 0.001  # 初始的学习率
-    momentum=0.9 #优化器的动量值
-    weight_decay=5e-4 #随机梯度下降SGD的权重衰减
-    gamma=0.1  # Gamma update for SGD  学习率调整参数
+    momentum = 0.9  # 优化器的动量值
+    weight_decay = 5e-4  # 随机梯度下降SGD的权重衰减
+    gamma = 0.1  # Gamma update for SGD  学习率调整参数
 
-    checkpoint_root ='/home/bobo/windowsPycharmProject/SSD_pytorch/checkpoint/' #保存模型的目录
+    checkpoint_root = 'D:/lab_working/Pytorch-SSD/SSD_pytorch/checkpoint/'  # 保存模型的目录
     # load_model_path = None  # 加载预训练的模型的路径，为None代表不加载
-    load_model_path ='/home/bobo/windowsPycharmProject/SSD_pytorch/checkpoint/ssd300_COCO_100000.pth'
-    # load_model_path='C:\\Users\\Administrator\\Desktop\\ssd300_COCO_10000.pth'
-
+    load_model_path = 'D:/lab_working/Pytorch-SSD/SSD_pytorch/checkpoint/ssd300_mAP_77.43_v2.pth'
 
     # gets home dir cross platform
     HOME = os.path.expanduser("~")
@@ -51,21 +51,22 @@ class DefaultConfig():
     }
 
     # 验证
-    confidence_threshold=0.01   # 检测置信度阈值  or 0.05
-    top_k=5           # 进一步限制要解析的预测数量
-    cleanup=True               # 清除并删除eval后的结果文件
-    temp= '/home/bobo/windowsPycharmProject/SSD_pytorch/temp'   #保存验证的临时文件
+    confidence_threshold = 0.01  # 检测置信度阈值  or 0.05
+    top_k = 5  # 进一步限制要解析的预测数量
+    cleanup = True  # 清除并删除eval后的结果文件
+    temp = 'D:/lab_working/Pytorch-SSD/SSD_pytorch/temp'  # 保存验证的临时文件
     annopath = os.path.join(voc_data_root, 'VOC2007', 'Annotations', '%s.xml')
     imgpath = os.path.join(voc_data_root, 'VOC2007', 'JPEGImages', '%s.jpg')
     imgsetpath = os.path.join(voc_data_root, 'VOC2007', 'ImageSets',
-                              'Main', '{:s}.txt')
-
-    #测试
-    temp_test='/home/bobo/windowsPycharmProject/SSD_pytorch/temp/' # 保存测试集（VOC2007测试集）的网络预测结果
-
-    #预测，可视化一张预测图片
-    test_img='/home/bobo/windowsPycharmProject/SSD_pytorch/temp/test.png'
+                              'Main', '{}.txt')
 
 
-#初始化该类的一个对象
-opt=DefaultConfig()
+    # 测试
+    temp_test = 'D:/lab_working/Pytorch-SSD/SSD_pytorch/temp/'  # 保存测试集（VOC2007测试集）的网络预测结果
+
+    # 预测，可视化一张预测图片
+    test_img = 'D:/lab_working/Pytorch-SSD/SSD_pytorch/temp/test.png'
+
+
+# 初始化该类的一个对象
+opt = DefaultConfig()

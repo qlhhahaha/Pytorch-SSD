@@ -7,7 +7,7 @@ def xavier(param):
     '''
     使用xavier算法初始化新增层的权重
     '''
-    init.xavier_uniform(param)
+    init.xavier_uniform_(param)
 
 
 def weights_init(m):

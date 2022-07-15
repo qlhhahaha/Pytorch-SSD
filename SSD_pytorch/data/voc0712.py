@@ -5,13 +5,14 @@ https://github.com/fmassa/vision/blob/voc_dataset/torchvision/datasets/voc.py
 
 Updated by: Ellis Brown, Max deGroot
 """
-from SSD_pytorch.utils.config import opt
+from utils.config import opt
 import os.path as osp
 import sys
 import torch
 import torch.utils.data as data
 import cv2
 import numpy as np
+
 if sys.version_info[0] == 2:
     import xml.etree.cElementTree as ET
 else:
@@ -108,17 +109,18 @@ class VOCDetection(data.Dataset):
                  dataset_name='VOC0712'):
         self.root = root
         self.image_set = image_sets
-        self.transform = transform   #SSDAugmentation(cfg['min_dim'],MEANS))  图像增强
-        self.target_transform = target_transform   #VOCAnnotationTransform()  注释变换
+        self.transform = transform  # SSDAugmentation(cfg['min_dim'],MEANS))  图像增强
+        self.target_transform = target_transform  # VOCAnnotationTransform()  注释变换
         self.name = dataset_name
-        self._annopath = osp.join('%s', 'Annotations', '%s.xml')  #读取所有xml文件
-        self._imgpath = osp.join('%s', 'JPEGImages', '%s.jpg')    #读取所有jpg文件
-        self.ids = list()   #图像的id全部保存在ids
+        self._annopath = osp.join('%s', 'Annotations', '%s.xml')  # 读取所有xml文件
+        self._imgpath = osp.join('%s', 'JPEGImages', '%s.jpg')  # 读取所有jpg文件
+        self.ids = list()  # 图像的id全部保存在ids
         # 2007和2012的训练验证集
         for (year, name) in image_sets:
             rootpath = osp.join(self.root, 'VOC' + year)
             for line in open(osp.join(rootpath, 'ImageSets', 'Main', name + '.txt')):
                 self.ids.append((rootpath, line.strip()))
+
 
     def __getitem__(self, index):
         '''

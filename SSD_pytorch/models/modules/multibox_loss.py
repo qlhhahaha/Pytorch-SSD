@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
-from SSD_pytorch.utils.config import opt
+from utils.config import opt
 from ..box_utils import match, log_sum_exp
 
 
@@ -43,16 +43,16 @@ class MultiBoxLoss(nn.Module):
                  bkg_label, neg_mining, neg_pos, neg_overlap, encode_target,
                  use_gpu=True):
         super(MultiBoxLoss, self).__init__()
-        self.use_gpu = use_gpu  #true
-        self.num_classes = num_classes  #  分类数  20类+1背景
-        self.threshold = overlap_thresh  #IOU阈值0.5 （>0.5即为正样本）
+        self.use_gpu = use_gpu  # true
+        self.num_classes = num_classes  # 分类数  20类+1背景
+        self.threshold = overlap_thresh  # IOU阈值0.5 （>0.5即为正样本）
         self.background_label = bkg_label  # 0：背景标签
-        self.encode_target = encode_target  #false  编码标签
-        self.use_prior_for_matching = prior_for_matching   #true  使用先验匹配
-        self.do_neg_mining = neg_mining  #true 使用硬性负开采
+        self.encode_target = encode_target  # false  编码标签
+        self.use_prior_for_matching = prior_for_matching  # true  使用先验匹配
+        self.do_neg_mining = neg_mining  # true 使用硬性负开采
         self.negpos_ratio = neg_pos  # 3  负比率，即硬性负开采中 负样本：正样本为3:1
         self.neg_overlap = neg_overlap  # 0.5
-        self.variance = opt.voc['variance']   #方差
+        self.variance = opt.voc['variance']  # 方差
 
     def forward(self, predictions, targets):
         """Multibox Loss
@@ -98,11 +98,11 @@ class MultiBoxLoss(nn.Module):
         # 遍历batch中的每一张照片  num=32
         # 使用 真值框 与 所有feature map的每个网格生成的共8732个锚 进行匹配
         for idx in range(num):
-            #[2,4] 该图片有两个物体，值为每个物体的4个坐标
-            #truths为一张图片中 两个物体对应的真值框坐标
+            # [2,4] 该图片有两个物体，值为每个物体的4个坐标
+            # truths为一张图片中 两个物体对应的真值框坐标
             truths = targets[idx][:, :-1].data
             # 2  该图片有两个物体，最后一个值为每个物体的类别
-            #labels为一张图片中 两个物体对应的类别真值
+            # labels为一张图片中 两个物体对应的类别真值
             labels = targets[idx][:, -1].data
             # [8732,4]  defaults  不同feature map根据公式生成的锚结果
             defaults = priors.data
@@ -127,16 +127,17 @@ class MultiBoxLoss(nn.Module):
         # Shape: [batch,num_priors,4]
         # pos_idx [32,8732,4]   由0,1组成  匹配到真实框的位置置为1
         pos_idx = pos.unsqueeze(pos.dim()).expand_as(loc_data)
+
         # loc_p [461,4]   从网络输出的回归框中 拿到 匹配到真值框 对应的定位坐标
         loc_p = loc_data[pos_idx].view(-1, 4)
+
         # loc_t [461,4]
         loc_t = loc_t[pos_idx].view(-1, 4)
-        # 计算算回归定位损失   loc_p 通过网络输出的预测框   loc_t 通过与真值框匹配的锚
+
+        # 计算回归定位损失   loc_p 通过网络输出的预测框   loc_t 通过与真值框匹配的锚
         loss_l = F.smooth_l1_loss(loc_p, loc_t, size_average=False)
 
-
-
-        #论文中先将每一个物体位置上对应 predictions（default boxes）是 negative 的 boxes 进行排序，
+        # 论文中先将每一个物体位置上对应 predictions（default boxes）是 negative 的 boxes 进行排序，
         # 按照 default boxes 的 confidence 的大小。 选择最高的几个，保证最后 negatives、positives 的比例在 3:1
 
         # 对于硬性负开采 在batch计算负样本的最大置信度
@@ -147,8 +148,12 @@ class MultiBoxLoss(nn.Module):
 
         # Hard Negative Mining
         # 硬性负开采
-        loss_c[pos] = 0  # filter out pos boxes for now  过滤掉正样本pos box
+        # loss_c[pos] = 0  # filter out pos boxes for now  过滤掉正样本pos box
+        # loss_c = loss_c.view(num, -1)
+
         loss_c = loss_c.view(num, -1)
+        loss_c[pos] = 0
+
         # 按每行降序排序  loss_idx为排序后的序号
         _, loss_idx = loss_c.sort(1, descending=True)
         _, idx_rank = loss_idx.sort(1)
@@ -156,16 +161,16 @@ class MultiBoxLoss(nn.Module):
         num_pos = pos.long().sum(1, keepdim=True)
         # 统计 负样本数目
         # torch.clamp(input, min, max, out=None)  将输入张量 input 所有元素限制在区间 [min, max] 中并返回一个结果张量.
-        num_neg = torch.clamp(self.negpos_ratio*num_pos, max=pos.size(1)-1)
+        num_neg = torch.clamp(self.negpos_ratio * num_pos, max=pos.size(1) - 1)
         neg = idx_rank < num_neg.expand_as(idx_rank)
 
         # Confidence Loss Including Positive and Negative Examples
         # 分类损失 包含正样本和负样本   conf_data：通过网络输出的分类的预测 [32,8732,21]
         pos_idx = pos.unsqueeze(2).expand_as(conf_data)
         neg_idx = neg.unsqueeze(2).expand_as(conf_data)
-        conf_p = conf_data[(pos_idx+neg_idx).gt(0)].view(-1, self.num_classes)
+        conf_p = conf_data[(pos_idx + neg_idx).gt(0)].view(-1, self.num_classes)
         # conf_t 保存分类误差
-        targets_weighted = conf_t[(pos+neg).gt(0)]
+        targets_weighted = conf_t[(pos + neg).gt(0)]
         # 分类损失使用交叉熵    size_average ：如果为TRUE，loss则是平均值，需要除以输入 tensor 中 element 的数目
         loss_c = F.cross_entropy(conf_p, targets_weighted, size_average=False)
 
